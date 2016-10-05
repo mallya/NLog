@@ -2846,6 +2846,63 @@ namespace NLog.UnitTests.Targets
             Assert.NotNull(exceptions[3]);
         }
 
+        public void HandleArchiveFileAlreadyExistsTest()
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), "HandleArchiveFileAlreadyExistsTest-" + Guid.NewGuid());
+            string logFile = Path.Combine(tempDir, "log.txt");
+            try
+            {
+                // set log file access times the same way as when this issue comes up.
+                Directory.CreateDirectory(tempDir);
+                File.WriteAllText(logFile, "some content");
+                var oldTime = DateTime.Now.AddDays(-2);
+                File.SetCreationTime(logFile, oldTime);
+                File.SetLastWriteTime(logFile, oldTime);
+                File.SetLastAccessTime(logFile, oldTime);
+
+                var oldLogFile = Path.Combine(tempDir, string.Format("log-{0}.txt", oldTime.ToString("yyyyMMdd")));
+                File.WriteAllText(oldLogFile, "old message");
+
+                LogManager.ThrowExceptions = true;
+
+                // configure nlog
+                var fileTarget = new FileTarget("file")
+                {
+                    FileName = logFile,
+                    ArchiveEvery = FileArchivePeriod.Day,
+                    ArchiveFileName = Path.Combine(tempDir, "log-{#}.txt"),
+                    ArchiveNumbering = ArchiveNumberingMode.Date,
+                };
+
+                var config = new LoggingConfiguration();
+                config.AddTarget(fileTarget);
+                config.AddRuleForAllLevels(fileTarget);
+
+                LogManager.Configuration = config;
+
+                var logger = LogManager.GetLogger("HandleArchiveFileAlreadyExistsTest");
+                // write
+                logger.Info("new message");
+
+                LogManager.Flush();
+            }
+            finally
+            {
+                //todo cleanup
+
+                try
+                {
+                    Directory.Delete(tempDir, true);
+                }
+                catch (Exception)
+                {
+                    
+                }
+                
+            }
+
+        }
+
     }
 
 
